@@ -18,17 +18,22 @@ ECHO_REFRESH_TEXT = re.compile('刷新|Refresh', re.IGNORECASE)
 # 品质优先级: 金 > 紫 > 蓝 > 灰
 ECHO_QUALITY_PRIORITY = ('gold', 'purple', 'blue', 'gray')
 
-# 顶部倍数按钮区域(最大为 MAX), 以及旁边"剩余X天"文本区域, 用于确认在乐园主界面 (1920x1080 归一化)
-GARDEN_MULTIPLIER_BOX = (0.540, 0.025, 0.600, 0.080)
-GARDEN_DAY_TEXT_BOX = (0.320, 0.025, 0.400, 0.080)
+# 顶部倍数按钮区域(最大为 MAX), 以及"剩余X天"按钮区域, 用于确认在乐园主界面 (1920x1080 归一化)
+GARDEN_MULTIPLIER_BOX = (0.630, 0.020, 0.715, 0.100)
+GARDEN_DAY_TEXT_BOX = (0.375, 0.020, 0.470, 0.100)
 GARDEN_DAY_TEXT = re.compile('剩余|剩餘|Days?|天', re.IGNORECASE)
 GARDEN_MULTIPLIER_MAX = re.compile('MAX', re.IGNORECASE)
+GARDEN_MULTIPLIER_NUM = re.compile('[x×] ?\\d', re.IGNORECASE)
+# 倍数按钮("MAX >>")点击位置
+GARDEN_MULTIPLIER_CLICK = (0.668, 0.060)
 
 # 卡片标题栏区域与卡片点击位置 (1920x1080 归一化坐标)
+# 注意: 点击点在卡片上半部分标题栏(声骸名字)位置,
+# 不能落在描述文字上, 否则会点中描述里的下划线词条(如"移除")而打开词条说明弹窗, 导致任务死循环
 ECHO_CARDS = (
-    {'header': (0.167, 0.155, 0.365, 0.210), 'click': (0.263, 0.407)},
-    {'header': (0.411, 0.155, 0.609, 0.210), 'click': (0.508, 0.407)},
-    {'header': (0.651, 0.155, 0.812, 0.210), 'click': (0.747, 0.407)},
+    {'header': (0.167, 0.155, 0.365, 0.210), 'click': (0.263, 0.180)},
+    {'header': (0.411, 0.155, 0.609, 0.210), 'click': (0.508, 0.180)},
+    {'header': (0.651, 0.155, 0.812, 0.210), 'click': (0.747, 0.180)},
 )
 
 
@@ -52,13 +57,20 @@ class GardenTask(WWOneTimeTask, BaseWWTask):
         WWOneTimeTask.run(self)
         self.ensure_main()
         self.open_garden_weekly_page()
-        self.ensure_garden_multiplier_max()
         if self.is_weekly_garden_completed():
             self.log_info('乐园任务完成, 已达到上限', notify=True)
             return
         self.click(0.246, 0.486, after_sleep=1)
+        # 倍数检查需要等真正进入乐园主界面后(出现"进入下一天"按钮)才能执行,
+        # 入口大世界界面上没有倍数按钮
+        self.multiplier_adjusted = False
         while True:
             self.sleep(0.1)
+            if not self.multiplier_adjusted and self.find_one('garden_next_day'):
+                self.multiplier_adjusted = True
+                self.log_info('on garden main screen, adjust multiplier to MAX')
+                self.ensure_garden_multiplier_max()
+                continue
             if self.handle_garden_echo_select():
                 continue
             target = self.find_best_garden_feature()
@@ -107,22 +119,32 @@ class GardenTask(WWOneTimeTask, BaseWWTask):
                 self.sleep(0.2)
         self.log_info('乐园任务完成, 已达到上限', notify=True)
 
-    def ensure_garden_multiplier_max(self, time_out=6):
+    def ensure_garden_multiplier_max(self, time_out=12):
         """乐园主界面检查顶部倍数按钮是否为 MAX, 不是则点击调整为 MAX"""
         box = self.box_of_screen(*GARDEN_MULTIPLIER_BOX)
         day_box = self.box_of_screen(*GARDEN_DAY_TEXT_BOX)
         start = time.time()
+        miss = 0
         while time.time() - start < time_out:
             texts = self.ocr(box=day_box, log=self.debug)
-            if not self.find_boxes(texts, boundary=day_box, match=GARDEN_DAY_TEXT):
-                self.log_info('not on garden main screen, skip multiplier check')
-                return False
+            self.log_debug(f'garden day ocr: {[b.name for b in texts]}')
+            day_ok = bool(self.find_boxes(texts, boundary=day_box, match=GARDEN_DAY_TEXT))
             texts = self.ocr(box=box, log=self.debug)
+            self.log_debug(f'garden multiplier ocr: {[b.name for b in texts]}')
             if self.find_boxes(texts, boundary=box, match=GARDEN_MULTIPLIER_MAX):
                 self.log_info('garden multiplier is MAX')
                 return True
-            self.log_info('garden multiplier not MAX, click to adjust')
-            self.click(0.565, 0.052, after_sleep=0.5)
+            if day_ok or self.find_boxes(texts, boundary=box, match=GARDEN_MULTIPLIER_NUM):
+                miss = 0
+                self.log_info('garden multiplier not MAX, click to adjust')
+                self.click(*GARDEN_MULTIPLIER_CLICK, after_sleep=0.5)
+            else:
+                # 画面可能还在过渡, 重试等待
+                miss += 1
+                if miss >= 3:
+                    self.log_info(f'not on garden main screen, day texts: {texts}')
+                    return False
+                self.sleep(0.5)
         self.log_info('adjust garden multiplier to MAX timeout')
         return False
 

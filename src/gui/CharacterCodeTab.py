@@ -498,7 +498,9 @@ def fetch_all_workshop_teams():
     local_index = WORKSHOP_LOCAL_ROOT / "teams.json"
     if local_index.is_file():
         try:
-            return _parse_workshop_index(local_index.read_bytes())
+            codes = _parse_workshop_index(local_index.read_bytes())
+            logger.info(f"char code workshop using local index: {local_index} ({len(codes)} codes)")
+            return codes
         except Exception as error:
             logger.error(f"load local workshop index failed: {error}")
 
@@ -536,7 +538,9 @@ def fetch_workshop_codes(team):
     local_team = WORKSHOP_LOCAL_ROOT / "teams" / f"{slug}.json"
     if local_team.is_file():
         try:
-            return _parse_workshop_team_codes(local_team.read_bytes(), expected_members)
+            codes = _parse_workshop_team_codes(local_team.read_bytes(), expected_members)
+            logger.info(f"char code workshop using local team: {local_team} ({len(codes)} codes)")
+            return codes
         except Exception as error:
             logger.error(f"load local workshop team failed: {error}")
 
@@ -1569,6 +1573,7 @@ class CharacterCodeTab(CustomTab):
         self._preview_and_import_archive(archive_path)
 
     def _open_workshop(self):
+        logger.info("char code workshop open requested")
         # An import selects the imported team, so ask before anything is downloaded.
         if not self._guard_unsaved_changes():
             return

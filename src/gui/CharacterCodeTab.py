@@ -41,10 +41,11 @@ from src.char.CustomCharLoader import (
 
 BASE_CHAR_URL = "https://raw.githubusercontent.com/ok-oldking/ok-wuthering-waves/refs/heads/master/src/char/BaseChar.py"
 UPLOAD_TEAM_URL = "https://github.com/ok-oldking/ok-ww-char-code"
-WORKSHOP_TEAMS_ALL_URL = "https://cfokwwchar.ok-script.com/teams.json"
-WORKSHOP_TEAM_URL = "https://cfokwwchar.ok-script.com/teams/{slug}.json"
-WORKSHOP_ARCHIVE_HOSTS = {"cfokwwchar.ok-script.com", "raw.githubusercontent.com"}
+WORKSHOP_TEAMS_ALL_URL = "https://raw.githubusercontent.com/yamadafz/ok-ww-char-code/main/teams.json"
+WORKSHOP_TEAM_URL = "https://raw.githubusercontent.com/yamadafz/ok-ww-char-code/main/teams/{slug}.json"
+WORKSHOP_ARCHIVE_HOSTS = {"raw.githubusercontent.com"}
 WORKSHOP_USER_AGENT = "ok-wuthering-waves"
+WORKSHOP_LOCAL_ROOT = Path(__file__).resolve().parents[2] / "assets" / "workshop"
 logger = Logger.get_logger(__name__)
 
 # The team list marks each team with a haloed dot, and both switch buttons wear the
@@ -463,16 +464,7 @@ def workshop_team_url(team):
     return WORKSHOP_TEAM_URL.format(slug=quote(workshop_team_slug(team), safe="_-"))
 
 
-def fetch_all_workshop_teams():
-    url = WORKSHOP_TEAMS_ALL_URL
-    logger.info(f"char code workshop all teams request: {url}")
-    try:
-        with urlopen(Request(url, headers={"User-Agent": WORKSHOP_USER_AGENT}), timeout=15) as response:
-            content = response.read(5_000_001)
-    except HTTPError as error:
-        if error.code == 404:
-            return []
-        raise
+def _parse_workshop_index(content):
     if len(content) > 5_000_000:
         raise ValueError(translate_ui("Workshop response is too large."))
     try:
@@ -502,17 +494,27 @@ def fetch_all_workshop_teams():
     return sorted(all_codes, key=lambda code: int(code.get("timestamp") or 0), reverse=True)
 
 
-def fetch_workshop_codes(team):
-    expected_members = sorted((get_english_char_name(name) for name in normalize_team(team)), key=str.casefold)
-    url = workshop_team_url(team)
-    logger.info(f"char code workshop request: {url}")
+def fetch_all_workshop_teams():
+    local_index = WORKSHOP_LOCAL_ROOT / "teams.json"
+    if local_index.is_file():
+        try:
+            return _parse_workshop_index(local_index.read_bytes())
+        except Exception as error:
+            logger.error(f"load local workshop index failed: {error}")
+
+    url = WORKSHOP_TEAMS_ALL_URL
+    logger.info(f"char code workshop all teams request: {url}")
     try:
         with urlopen(Request(url, headers={"User-Agent": WORKSHOP_USER_AGENT}), timeout=15) as response:
-            content = response.read(2_000_001)
+            content = response.read(5_000_001)
     except HTTPError as error:
         if error.code == 404:
             return []
         raise
+    return _parse_workshop_index(content)
+
+
+def _parse_workshop_team_codes(content, expected_members):
     if len(content) > 2_000_000:
         raise ValueError(translate_ui("Workshop response is too large."))
     try:
@@ -526,6 +528,28 @@ def fetch_workshop_codes(team):
         raise ValueError(translate_ui("Workshop returned a different team."))
     codes = [code for code in payload["codes"] if isinstance(code, dict)]
     return sorted(codes, key=lambda code: int(code.get("timestamp") or 0), reverse=True)
+
+
+def fetch_workshop_codes(team):
+    expected_members = sorted((get_english_char_name(name) for name in normalize_team(team)), key=str.casefold)
+    slug = quote(workshop_team_slug(team), safe="_-")
+    local_team = WORKSHOP_LOCAL_ROOT / "teams" / f"{slug}.json"
+    if local_team.is_file():
+        try:
+            return _parse_workshop_team_codes(local_team.read_bytes(), expected_members)
+        except Exception as error:
+            logger.error(f"load local workshop team failed: {error}")
+
+    url = WORKSHOP_TEAM_URL.format(slug=slug)
+    logger.info(f"char code workshop request: {url}")
+    try:
+        with urlopen(Request(url, headers={"User-Agent": WORKSHOP_USER_AGENT}), timeout=15) as response:
+            content = response.read(2_000_001)
+    except HTTPError as error:
+        if error.code == 404:
+            return []
+        raise
+    return _parse_workshop_team_codes(content, expected_members)
 
 
 def format_workshop_local_time(code, date_only=False):

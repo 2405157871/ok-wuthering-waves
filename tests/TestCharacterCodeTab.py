@@ -54,6 +54,12 @@ class TestCharacterCodeTab(unittest.TestCase):
         self.old_config_folder = Config.config_folder
         self.temp_dir = tempfile.TemporaryDirectory()
         Config.config_folder = self.temp_dir.name
+        local_root = patch(
+            "src.gui.CharacterCodeTab.WORKSHOP_LOCAL_ROOT",
+            Path(self.temp_dir.name) / "no-workshop",
+        )
+        local_root.start()
+        self.addCleanup(local_root.stop)
         clear_team_char_cache()
 
     def tearDown(self):
@@ -214,13 +220,13 @@ class TestCharacterCodeTab(unittest.TestCase):
     def test_workshop_url_uses_sorted_team_slug(self):
         self.assertEqual(
             workshop_team_url((Baizhi, Augusta, Aemeath)),
-            "https://cfokwwchar.ok-script.com/teams/Aemeath_Augusta_Baizhi.json",
+            "https://raw.githubusercontent.com/yamadafz/ok-ww-char-code/main/teams/Aemeath_Augusta_Baizhi.json",
         )
 
     def test_workshop_url_sanitizes_character_name_punctuation(self):
         self.assertEqual(
             workshop_team_url((YangYangSp, Chisa, Suisui)),
-            "https://cfokwwchar.ok-script.com/teams/Chisa_Suisui_Yangyang_Xuanling.json",
+            "https://raw.githubusercontent.com/yamadafz/ok-ww-char-code/main/teams/Chisa_Suisui_Yangyang_Xuanling.json",
         )
 
     def test_workshop_codes_are_sorted_by_timestamp_descending(self):
@@ -251,7 +257,7 @@ class TestCharacterCodeTab(unittest.TestCase):
         self.assertEqual(open_url.call_args.kwargs, {"timeout": 15})
         log_info.assert_called_once_with(
             "char code workshop request: "
-            "https://cfokwwchar.ok-script.com/teams/Aemeath_Augusta_Baizhi.json"
+            "https://raw.githubusercontent.com/yamadafz/ok-ww-char-code/main/teams/Aemeath_Augusta_Baizhi.json"
         )
 
     def test_workshop_404_is_an_empty_list(self):
@@ -269,20 +275,37 @@ class TestCharacterCodeTab(unittest.TestCase):
         self.assertEqual(codes[0]["name"], "Test code")
         self.assertEqual(codes[0]["team"], "Test team")
         request = open_url.call_args.args[0]
-        self.assertEqual(request.full_url, "https://cfokwwchar.ok-script.com/teams.json")
+        self.assertEqual(
+            request.full_url,
+            "https://raw.githubusercontent.com/yamadafz/ok-ww-char-code/main/teams.json",
+        )
         self.assertEqual(request.get_header("User-agent"), "ok-wuthering-waves")
         self.assertEqual(open_url.call_args.kwargs, {"timeout": 15})
+
+    def test_workshop_prefers_local_mirror(self):
+        root = Path(self.temp_dir.name) / "local-workshop"
+        (root / "teams").mkdir(parents=True)
+        payload = {"teams": [{"team": "Local team", "members": ["Aemeath"],
+                              "codes": [{"name": "Local code", "timestamp": 1}]}]}
+        (root / "teams.json").write_text(json.dumps(payload), encoding="utf-8")
+        with (
+            patch("src.gui.CharacterCodeTab.WORKSHOP_LOCAL_ROOT", root),
+            patch("src.gui.CharacterCodeTab.urlopen") as open_url,
+        ):
+            codes = fetch_all_workshop_teams()
+        self.assertEqual(codes[0]["name"], "Local code")
+        open_url.assert_not_called()
 
     def test_workshop_archive_sends_app_user_agent(self):
         tab = CharacterCodeTab()
         try:
             for field, url, expected_url in (
-                ("downloadUrl", "https://cfokwwchar.ok-script.com/team.zip",
-                 "https://cfokwwchar.ok-script.com/team.zip"),
+                ("downloadUrl", "https://raw.githubusercontent.com/yamadafz/ok-ww-char-code/main/teams/team.zip",
+                 "https://raw.githubusercontent.com/yamadafz/ok-ww-char-code/main/teams/team.zip"),
                 ("rawUrl", "https://raw.githubusercontent.com/example/team.zip",
                  "https://raw.githubusercontent.com/example/team.zip"),
                 ("downloadUrl", "https://okwwcharcode.ok-script.com/codes/team%20name.zip",
-                 "https://cfokwwchar.ok-script.com/codes/team%20name.zip"),
+                 "https://raw.githubusercontent.com/codes/team%20name.zip"),
             ):
                 with (
                     self.subTest(url=url),

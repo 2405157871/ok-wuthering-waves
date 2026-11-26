@@ -177,7 +177,7 @@ config = {
     },
     'config_folder': 'configs',
     'blur_area': blur_area,
-    'gui_icon': 'icons/icon.png',
+    'gui_icon': 'icons/mc-ok.png',
     'global_configs': [basic_config_option, key_config_option, char_config_option, monthly_card_config_option],
     'custom_tabs': [
         ["src.gui.CharacterCodeTab", "CharacterCodeTab"],
@@ -271,7 +271,7 @@ config = {
     </p>
 """,
     'screenshots_folder': "screenshots",
-    'gui_title': 'OK-WW',  # Optional
+    'gui_title': 'MC-OK',  # Optional
     'game_name': 'Wuthering Waves',
     # 'coco_feature_folder': get_path(__file__, 'assets/coco_feature'),  # required if using feature detection
     'log_file': 'logs/ok-ww.log',  # Optional, auto rotating every day

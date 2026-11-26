@@ -1,6 +1,6 @@
-name: "ok-ww"
+name: "mc-ok"
 uac: true
-icon: "icons/icon.png"
+icon: "icons/mc-ok.ico"
 website: "http://ok-script.com/ok-ww"
 keep_releases: 30
 

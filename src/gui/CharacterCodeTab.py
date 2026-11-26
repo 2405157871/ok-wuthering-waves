@@ -5,7 +5,7 @@ import tempfile
 from datetime import datetime
 from pathlib import Path
 from urllib.error import HTTPError
-from urllib.parse import quote, urlparse
+from urllib.parse import quote, unquote, urlparse
 from urllib.request import Request, urlopen
 
 from PySide6.QtCore import QPointF, Qt, QSize, QUrl, Signal
@@ -492,6 +492,17 @@ def _parse_workshop_index(content):
             all_codes.append(item)
 
     return sorted(all_codes, key=lambda code: int(code.get("timestamp") or 0), reverse=True)
+
+
+def _local_workshop_archive_path(code, url):
+    filename = str(code.get("filename") or "")
+    if not filename:
+        filename = Path(unquote(urlparse(str(url or "")).path)).name
+    archive_name = Path(filename).name
+    if not archive_name or archive_name in {".", ".."}:
+        return None
+    archive_path = WORKSHOP_LOCAL_ROOT / "codes" / archive_name
+    return archive_path if archive_path.is_file() else None
 
 
 def fetch_all_workshop_teams():
@@ -1588,6 +1599,11 @@ class CharacterCodeTab(CustomTab):
 
     def _import_workshop_code(self, code, parent):
         url = code.get("downloadUrl") or code.get("rawUrl")
+        local_archive = _local_workshop_archive_path(code, url)
+        if local_archive is not None:
+            logger.info(f"char code workshop using local archive: {local_archive}")
+            self._preview_and_import_archive(local_archive, expected_team=None)
+            return
         parsed = urlparse(str(url or ""))
         # Published workshop indexes can still contain the previous server's URLs.
         if parsed.hostname == "okwwcharcode.ok-script.com":

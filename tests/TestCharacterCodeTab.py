@@ -296,6 +296,25 @@ class TestCharacterCodeTab(unittest.TestCase):
         self.assertEqual(codes[0]["name"], "Local code")
         open_url.assert_not_called()
 
+    def test_workshop_import_prefers_local_archive(self):
+        root = Path(self.temp_dir.name) / "local-workshop"
+        (root / "codes").mkdir(parents=True)
+        archive = root / "codes" / "team.zip"
+        archive.write_bytes(b"local archive")
+        tab = CharacterCodeTab()
+        try:
+            with (
+                patch("src.gui.CharacterCodeTab.WORKSHOP_LOCAL_ROOT", root),
+                patch("src.gui.CharacterCodeTab.urlopen") as open_url,
+                patch.object(tab, "_preview_and_import_archive") as preview,
+            ):
+                tab._import_workshop_code(
+                    {"filename": "team.zip", "downloadUrl": "https://example.invalid/team.zip"}, tab)
+            preview.assert_called_once_with(archive, expected_team=None)
+            open_url.assert_not_called()
+        finally:
+            tab.deleteLater()
+
     def test_workshop_archive_sends_app_user_agent(self):
         tab = CharacterCodeTab()
         try:

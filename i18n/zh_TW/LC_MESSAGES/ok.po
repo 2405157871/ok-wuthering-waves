@@ -2506,3 +2506,5 @@ msgstr "開始挑戰後未檢測到棋盤或開始按鈕"
 
 msgid "No board detected after starting the challenge"
 msgstr "開始挑戰後未檢測到棋盤"
+msgid "Timed out on the game login screen."
+msgstr "等待遊戲登入逾時，仍停在登入畫面。"

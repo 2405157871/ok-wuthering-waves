@@ -2428,3 +2428,5 @@ msgstr "开始挑战后未检测到棋盘或开始按钮"
 
 msgid "No board detected after starting the challenge"
 msgstr "开始挑战后未检测到棋盘"
+msgid "Timed out on the game login screen."
+msgstr "等待游戏登录超时，仍停在登录界面。"

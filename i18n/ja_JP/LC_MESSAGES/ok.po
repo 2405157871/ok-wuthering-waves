@@ -2377,3 +2377,5 @@ msgstr "チャレンジ開始後に盤面や開始ボタンを検出できませ
 
 msgid "No board detected after starting the challenge"
 msgstr "チャレンジ開始後に盤面を検出できません"
+msgid "Timed out on the game login screen."
+msgstr "ゲームのログイン画面でタイムアウトしました。"

@@ -2224,3 +2224,5 @@ msgstr "No se detecta el tablero ni el botón Iniciar tras comenzar el desafío"
 
 msgid "No board detected after starting the challenge"
 msgstr "No se detecta el tablero tras comenzar el desafío"
+msgid "Timed out on the game login screen."
+msgstr "Se agotó el tiempo de espera en la pantalla de inicio de sesión del juego."
